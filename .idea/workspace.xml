@@ -5,8 +5,15 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="a4fc2755-696c-4fd0-a133-347f006d20c0" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/temp.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/test_game.py" beforeDir="false" afterPath="$PROJECT_DIR$/test_game.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/saved_agents/6hguyagainst_p2_ep3163_e0.050_w1806.pt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/saved_agents/6hrguy_p1_ep3255_e0.050_w1565.pt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/saved_agents/suicideboy_p1_ep5796_e0.050_w2408.pt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/saved_agents/suicideman_p2_ep5675_e0.050_w2864.pt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/saved_agents/temp1_p1_ep1376_e0.252_w670.pt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/saved_agents/temp2_p2_ep1352_e0.259_w666.pt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/stats_data.json" beforeDir="false" afterPath="$PROJECT_DIR$/stats_data.json" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -36,6 +43,7 @@
     "ModuleVcsDetector.initialDetectionPerformed": "true",
     "Python.game_2a.executor": "Run",
     "Python.main.executor": "Run",
+    "Python.temp.executor": "Run",
     "Python.test_game.executor": "Run",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
@@ -99,7 +107,7 @@
       <workItem from="1777286717763" duration="2217000" />
       <workItem from="1777374952815" duration="242000" />
       <workItem from="1777531670918" duration="14042000" />
-      <workItem from="1777891230254" duration="6327000" />
+      <workItem from="1777891230254" duration="11183000" />
     </task>
     <servers />
   </component>
@@ -107,9 +115,10 @@
     <option name="version" value="3" />
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
-    <SUITE FILE_PATH="coverage/rl_game$test_game.coverage" NAME="test_game Coverage Results" MODIFIED="1777904774836" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/rl_game$main.coverage" NAME="main Coverage Results" MODIFIED="1777891314753" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/rl_game$test_game.coverage" NAME="test_game Coverage Results" MODIFIED="1777912788714" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/rl_game$main.coverage" NAME="main Coverage Results" MODIFIED="1777909206036" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/pcman$main.coverage" NAME="main Coverage Results" MODIFIED="1777288074083" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/rl_game$game_2a.coverage" NAME="game_2a Coverage Results" MODIFIED="1777893326660" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/rl_game$temp.coverage" NAME="temp Coverage Results" MODIFIED="1777912470827" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>
