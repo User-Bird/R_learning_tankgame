@@ -5,7 +5,7 @@ Pick any saved .pt agent OR the built-in random bot to play
 against.
 
 Controls (Twin-Stick Style)
-  W A S D    move
+  W A S D    move  (multi-key, all held keys are checked each frame)
   MOUSE      aim
   R-CLICK    shoot          (Hold to auto-fire when ready)
   L-CLICK    drop mine      (instant keypress)
@@ -84,6 +84,9 @@ C_HUD_LINE    = (36,  38,  54)
 C_TEXT_PRI    = (210, 208, 200)
 C_TEXT_SEC    = (130, 128, 118)
 C_TEXT_DIM    = (60,  58,  54)
+C_WARNING_BG  = (30,  20,  10)
+C_WARNING_BD  = (220, 160,  40)
+C_WARNING_TXT = (220, 180,  60)
 
 DIR_NAMES    = {UP: "UP", RIGHT: "RIGHT", DOWN: "DOWN", LEFT: "LEFT"}
 ACTION_NAMES = ["Rot L", "Rot R", "Move", "Shoot", "Stay", "Mine"]
@@ -121,10 +124,15 @@ def pick_opponent(screen, fonts):
     items   = ["[Random Bot]"] + agents
     sel, scroll = 0, 0
 
-    DW, DH  = 500, 460
+    DW, DH  = 600, 580
     dx, dy  = (W - DW) // 2, (H - DH) // 2
     dlg     = pygame.Rect(dx, dy, DW, DH)
-    list_r  = pygame.Rect(dx + 14, dy + 64, DW - 28, DH - 120)
+
+    # ── Movement info box (top area) ─────────────────────────────────────────
+    INFO_H_BOX = 175
+    list_top = dy + 64 + INFO_H_BOX + 10
+
+    list_r  = pygame.Rect(dx + 14, list_top, DW - 28, DH - (list_top - dy) - 56)
     btn_ok  = pygame.Rect(dx + 14,             dy + DH - 46, (DW - 42) // 2, 34)
     btn_quit= pygame.Rect(btn_ok.right + 14,  dy + DH - 46, (DW - 42) // 2, 34)
 
@@ -174,6 +182,39 @@ def pick_opponent(screen, fonts):
         hint     = "Random Bot" if sel == 0 else items[sel]
         ht = font_xs.render(f"Selected: {hint}", True, hint_col)
         screen.blit(ht, (dlg.centerx - ht.get_width() // 2, dy + 44))
+
+        # ── Movement info box ─────────────────────────────────────────────────
+        info_box = pygame.Rect(dx + 14, dy + 64, DW - 28, INFO_H_BOX)
+        pygame.draw.rect(screen, C_WARNING_BG, info_box, border_radius=6)
+        pygame.draw.rect(screen, C_WARNING_BD, info_box, 1, border_radius=6)
+
+        bx = info_box.left + 10
+        iy = info_box.top + 8
+
+        hdr = font_sm.render("HOW TO PLAY / CONTROLS", True, C_WARNING_TXT)
+        screen.blit(hdr, (bx, iy))
+        iy += hdr.get_height() + 8
+
+        lines = [
+            ("AI (Agent):    ", C_P2,        "Moves like a classic tank. It must rotate its body"),
+            ("               ", C_TEXT_DIM,  "first with buttons, then move forward. Cannot strafe."),
+            ("YOU (Player):  ", C_P1,        "Twin-stick style. W/A/S/D moves you instantly in"),
+            ("               ", C_TEXT_DIM,  "that grid direction. Your mouse aims the cannon"),
+            ("               ", C_TEXT_DIM,  "independently. R-Click to shoot, L-Click for mine."),
+            ("", (0,0,0), ""), # Spacer
+            ("⚠ WARNING:     ", (255, 100, 100), "Because the core engine is built strictly for tank controls,"),
+            ("               ", (255, 100, 100), "this twin-stick human mapping might feel a bit janky!"),
+        ]
+        for label, lcol, desc in lines:
+            if not label: # Handle spacer
+                iy += 6
+                continue
+
+            lt = font_xs.render(label, True, lcol)
+            dt = font_xs.render(desc,  True, C_TEXT_SEC)
+            screen.blit(lt, (bx, iy))
+            screen.blit(dt, (bx + lt.get_width(), iy))
+            iy += lt.get_height() + 2
 
         # List box
         pygame.draw.rect(screen, (12, 12, 18), list_r, border_radius=4)
@@ -532,7 +573,7 @@ def draw_hud(screen, session, hud_rect, font_md, font_sm, font_xs, move_cd: int)
     # ── Controls ──────────────────────────────────────────────────────────────
     line("CONTROLS", C_TEXT_PRI, gap=4, font=font_sm)
     line("  W A S D   move", C_TEXT_DIM)
-    line("  MOUSE     aim", C_TEXT_DIM)
+    line("  MOUSE     aim cannon", C_TEXT_DIM)
     line("  R-CLICK   shoot", C_TEXT_DIM)
     line("  L-CLICK   drop mine", C_MINE_P1)
     line("  R         full reset", C_TEXT_DIM)
@@ -640,7 +681,7 @@ def draw_info_bar(screen, info_rect, font_xs):
     pygame.draw.rect(screen, C_HUD_BG, info_rect)
     pygame.draw.line(screen, C_HUD_LINE,
                      info_rect.topleft, info_rect.topright, 1)
-    tip = ("Test Game  │  WASD=Move  Mouse=Aim  R-Click=Shoot  L-Click=Mine  R=Reset")
+    tip = ("Test Game  │  WASD=Move (hold multiple)  Mouse=Aim  R-Click=Shoot  L-Click=Mine  R=Reset")
     t = font_xs.render(tip, True, C_TEXT_DIM)
     screen.blit(t, (12, info_rect.top + (INFO_H - t.get_height()) // 2))
 
@@ -679,7 +720,7 @@ def main():
     running = True
 
     while running:
-        # Determine mouse aim direction
+        # ── Determine mouse aim direction ─────────────────────────────────────
         mx, my = pygame.mouse.get_pos()
         tx = session.game.tank1.x * TILE + TILE // 2
         ty = session.game.tank1.y * TILE + TILE // 2
@@ -694,7 +735,7 @@ def main():
 
         player_action = 4   # default: stay
 
-        # ── Event Loop (Clicks) ───────────────────────────────────────────────
+        # ── Event Loop (click-only events) ───────────────────────────────────
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT:
                 running = False
@@ -705,7 +746,7 @@ def main():
                     session.full_reset()
                     move_cd = 0
             if ev.type == pygame.MOUSEBUTTONDOWN:
-                if ev.button == 1 and not session.game.done: # Left click -> Mine
+                if ev.button == 1 and not session.game.done:   # Left click -> Mine
                     t = session.game.tank1
                     active = sum(1 for m in session.game.active_mines if m.owner_id == 1)
 
@@ -726,31 +767,38 @@ def main():
             break
 
         # ── Held actions: Shoot & Move ────────────────────────────────────────
+        # Read ALL currently held keys/buttons at once — no elif blocking.
         mouse_btns = pygame.mouse.get_pressed()
-        keys = pygame.key.get_pressed()
+        keys       = pygame.key.get_pressed()
 
         if player_action == 4 and not session.game.done:
-            # Right Click (Shoot) takes priority over moving
+            # Right-click shoot takes priority over movement
             if mouse_btns[2]:
                 player_action = 3
-            # If not shooting, check WASD
+
+            # Movement: check all four directions simultaneously.
+            # Priority order when multiple keys are held: W > S > A > D
+            # (feels natural; change order here if you prefer different priority)
             elif move_cd == 0:
                 move_dir = None
-                if keys[pygame.K_w]: move_dir = UP
+                if   keys[pygame.K_w]: move_dir = UP
                 elif keys[pygame.K_s]: move_dir = DOWN
                 elif keys[pygame.K_a]: move_dir = LEFT
                 elif keys[pygame.K_d]: move_dir = RIGHT
 
                 if move_dir is not None:
-                    player_action = 2
-                    session.game.tank1.direction = move_dir  # Face movement direction
+                    # Set tank facing direction BEFORE the step so the engine
+                    # moves in the right direction.
+                    session.game.tank1.direction = move_dir
+                    player_action = 2   # Move forward
                     move_cd = MOVE_CD
 
-        # If we aren't moving, ensure we face the mouse cursor
+        # When not moving, snap the cannon to the mouse direction for aiming.
         if player_action != 2:
             session.game.tank1.direction = mouse_dir
 
-        if move_cd > 0: move_cd -= 1
+        if move_cd > 0:
+            move_cd -= 1
 
         # ── Game logic ────────────────────────────────────────────────────────
         if session.game.done:
@@ -760,7 +808,7 @@ def main():
                 move_cd = 0
         else:
             session.step(player_action)
-            # Instantly snap direction back to mouse for correct visual rendering
+            # After step, snap direction back to mouse for correct visual rendering
             session.game.tank1.direction = mouse_dir
 
         # ── Render ────────────────────────────────────────────────────────────
@@ -782,8 +830,14 @@ def main():
             bx = ARENA_W // 2 - wt_surf.get_width() // 2
             by = 24
             pad = 8
-            pygame.draw.rect(screen, (30, 10, 10), (bx - pad, by - pad, wt_surf.get_width() + pad*2, wt_surf.get_height() + pad*2), border_radius=5)
-            pygame.draw.rect(screen, (255, 100, 100), (bx - pad, by - pad, wt_surf.get_width() + pad*2, wt_surf.get_height() + pad*2), 1, border_radius=5)
+            pygame.draw.rect(screen, (30, 10, 10),
+                             (bx - pad, by - pad,
+                              wt_surf.get_width() + pad*2,
+                              wt_surf.get_height() + pad*2), border_radius=5)
+            pygame.draw.rect(screen, (255, 100, 100),
+                             (bx - pad, by - pad,
+                              wt_surf.get_width() + pad*2,
+                              wt_surf.get_height() + pad*2), 1, border_radius=5)
             screen.blit(wt_surf, (bx, by))
             warning_timer -= 1
 
