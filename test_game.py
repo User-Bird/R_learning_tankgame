@@ -196,14 +196,14 @@ def pick_opponent(screen, fonts):
         iy += hdr.get_height() + 8
 
         lines = [
-            ("AI (Agent):    ", C_P2,        "Moves like a classic tank. It must rotate its body"),
-            ("               ", C_TEXT_DIM,  "first with buttons, then move forward. Cannot strafe."),
-            ("YOU (Player):  ", C_P1,        "Twin-stick style. W/A/S/D moves you instantly in"),
-            ("               ", C_TEXT_DIM,  "that grid direction. Your mouse aims the cannon"),
-            ("               ", C_TEXT_DIM,  "independently. R-Click to shoot, L-Click for mine."),
-            ("", (0,0,0), ""), # Spacer
-            ("⚠ WARNING:     ", (255, 100, 100), "Because the core engine is built strictly for tank controls,"),
-            ("               ", (255, 100, 100), "this twin-stick human mapping might feel a bit janky!"),
+            ("IA (Agent) :   ", C_P2, "Se déplace comme un tank classique. Il doit pivoter"),
+            ("               ", C_TEXT_DIM, "avant d'avancer. Impossible de se déplacer latéralement."),
+            ("VOUS (Joueur) :", C_P1, "Style 'Twin-stick'. W/A/S/D vous déplace instantanément"),
+            ("               ", C_TEXT_DIM, "dans cette direction. La souris dirige le canon de"),
+            ("               ", C_TEXT_DIM, "façon autonome. Clic-D: Tirer, Clic-G: Poser une mine."),
+            ("", (0, 0, 0), ""),  # Spacer
+            ("⚠ ATTENTION :  ", (255, 100, 100), "Le moteur de base étant conçu pour des contrôles de tank,"),
+            ("               ", (255, 100, 100), "ces mouvements 'twin-stick' peuvent sembler un peu saccadés !"),
         ]
         for label, lcol, desc in lines:
             if not label: # Handle spacer
