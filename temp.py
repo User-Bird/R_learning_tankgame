@@ -36,6 +36,7 @@ C_BULLET_P1   = (160, 255, 180)
 C_BULLET_P2   = (255, 160, 140)
 C_MINE_P1     = (180, 255,  50)
 C_MINE_P2     = (255, 100, 200)
+C_CHARGE_TILE = (60,  50,  10)
 C_CHARGE_GLOW = (220, 190,  40)
 
 C_BTN_IDLE    = (40, 100, 180)
@@ -137,6 +138,15 @@ def draw_mine(surf, mine, tile):
     pygame.draw.circle(surf, color, (cx_, cy_), 6)
     pygame.draw.circle(surf, (255, 255, 255), (cx_, cy_), 2)
 
+def draw_charge_tile_dummy(surf, c, r, tile):
+    rect = pygame.Rect(c * tile, r * tile, tile, tile)
+    pygame.draw.rect(surf, C_CHARGE_TILE, rect)
+    pygame.draw.rect(surf, C_CHARGE_GLOW, rect, 1)
+    mx = c * tile + tile // 2
+    my = r * tile + tile // 2
+    pts = [(mx, my-8),(mx-4,my),(mx+1,my),(mx,my+8),(mx+4,my),(mx-1,my)]
+    pygame.draw.lines(surf, C_CHARGE_GLOW, False, pts, 2)
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main():
     pygame.init()
@@ -153,12 +163,12 @@ def main():
                 grid[oy + r][ox + c] = val
 
     # Setup dummy objects for the screenshot
-    t1 = DummyTank(3, 16, UP, 1)
-    t2 = DummyTank(7, 16, DOWN, 2)
-    b1 = DummyBullet(11, 16, 1)
-    b2 = DummyBullet(13, 16, 2)
-    m1 = DummyMine(17, 16, 1)
-    m2 = DummyMine(21, 16, 2)
+    t1 = DummyTank(2, 16, UP, 1)
+    t2 = DummyTank(6, 16, DOWN, 2)
+    b1 = DummyBullet(10, 16, 1)
+    b2 = DummyBullet(12, 16, 2)
+    m1 = DummyMine(16, 16, 1)
+    m2 = DummyMine(18, 16, 2)
 
     button_rect = pygame.Rect(ARENA_W + 20, ARENA_H // 2 - 25, PANEL_W - 40, 50)
     show_numbers = False
@@ -206,13 +216,15 @@ def main():
         draw_bullet(screen, b2, TILE)
         draw_mine(screen, m1, TILE)
         draw_mine(screen, m2, TILE)
+        draw_charge_tile_dummy(screen, 22, 16, TILE)
 
         # ── Draw Labels above Entities ───────────────────────────────────────
         labels = [
-            ("PLAYER 1", 3, C_P1),
-            ("PLAYER 2", 7, C_P2),
-            ("BULLETS", 12, (255, 255, 255)),
-            ("MINES", 19, (255, 255, 255))
+            ("PLAYER 1", 2, C_P1),
+            ("PLAYER 2", 6, C_P2),
+            ("BULLETS", 11, (255, 255, 255)),
+            ("MINES", 17, (255, 255, 255)),
+            ("CHARGE", 22, C_CHARGE_GLOW)
         ]
         for text, grid_x, color in labels:
             surf = font_sm.render(text, True, color)

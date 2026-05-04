@@ -26,34 +26,24 @@ from agent_selector import (
 # ── Session Wrapper ────────────────────────────────────────────────────────────
 
 class Session:
-    """Wraps a single game and its agents for the main loop."""
     def __init__(self, idx: int, session_mode: str, agent1_path: str, agent2_path: str):
         self.idx = idx
         self.game = TankGame()
-
-        # Initialize two independent trainers for self-play
         self.trainer1 = Trainer()
         self.trainer2 = Trainer()
-
-        # Initialize tracking vars
         self.episodes = 0
         self.wins_p1 = 0
         self.wins_p2 = 0
         self.ticks = 0
-
-        # Reward tracking for live curves
         self.ep_reward_p1 = 0.0
         self.ep_reward_p2 = 0.0
         self.last_ep_reward_p1 = 0.0
         self.last_ep_reward_p2 = 0.0
-
-        # ── LOAD SAVED AGENTS LOGIC ───────────────────────────────────────────
         if session_mode == "NEW_VS_AGENT" and agent2_path:
             ckpt = self.trainer2.load_checkpoint(agent2_path)
             if ckpt:
                 self.episodes = ckpt.get("episodes", 0)
                 self.wins_p2  = ckpt.get("wins",     0)
-
         elif session_mode == "AGENT_VS_AGENT":
             if agent1_path:
                 ckpt1 = self.trainer1.load_checkpoint(agent1_path)
@@ -65,50 +55,32 @@ class Session:
                 if ckpt2:
                     self.episodes = max(self.episodes, ckpt2.get("episodes", 0))
                     self.wins_p2  = ckpt2.get("wins",     0)
-        # ──────────────────────────────────────────────────────────────────────
-
         self.agent1 = DQNAgent(self.trainer1)
         self.agent2 = DQNAgent(self.trainer2)
-
         self.states = self.game.reset()
-
     def step(self):
-        """Returns True if the episode ended on this step, False otherwise."""
         s1, s2 = self.states
-
-        # Get actions
         a1 = self.agent1.get_action(s1)
         a2 = self.agent2.get_action(s2)
-
-        # Advance game
         next_states, rewards, done = self.game.step([a1, a2])
         self.ticks += 1
-
-        # Accumulate rewards for this episode
         self.ep_reward_p1 += rewards[0]
         self.ep_reward_p2 += rewards[1]
-
-        # Push experience to buffers
         self.agent1.push(s1, a1, rewards[0], next_states[0], done)
         self.agent2.push(s2, a2, rewards[1], next_states[1], done)
-
         if done:
             self.episodes += 1
             if "1 WINS" in self.game.result_text:
                 self.wins_p1 += 1
             elif "2 WINS" in self.game.result_text:
                 self.wins_p2 += 1
-
             self.agent1.on_episode_end()
             self.agent2.on_episode_end()
             self.states = self.game.reset()
-
-            # Save final episode rewards for plotting, then reset accumulators
             self.last_ep_reward_p1 = self.ep_reward_p1
             self.last_ep_reward_p2 = self.ep_reward_p2
             self.ep_reward_p1 = 0.0
             self.ep_reward_p2 = 0.0
-
             return True
         else:
             self.states = next_states
