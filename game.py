@@ -70,8 +70,15 @@ _SPAWN_WEIGHTS = [1, 3, 3, 3]
 _NON_SPAWN_TEMPLATES = [
     [[2, 2, 2, 2, 2], [0, 1, 1, 1, 2], [0, 2, 2, 1, 2], [0, 1, 2, 1, 2], [2, 0, 0, 0, 2]],
     [[2, 2, 2, 2, 2], [0, 1, 1, 1, 0], [0, 2, 2, 2, 0], [0, 1, 1, 1, 0], [2, 2, 2, 2, 2]],
+    # Object 3 — short vertical wall
+    [
+        [0, 0, 0],
+        [2, 1, 2],
+        [2, 1, 2],
+        [0, 0, 0],
+    ]
 ]
-_NON_SPAWN_WEIGHTS = [1, 1]
+_NON_SPAWN_WEIGHTS = [1, 1, 2]
 
 
 def _rotate_template_90(t):
@@ -87,6 +94,7 @@ def _place_template(grid, template, origin_col: int, origin_row: int, protected:
     for r, row in enumerate(template):
         for c, val in enumerate(row):
             gc, gr = origin_col + c, origin_row + r
+            # Skip out-of-bounds cells so template can sit flush
             if not (0 < gc < COLS - 1 and 0 < gr < ROWS - 1): continue
             if val == 1: grid[gr][gc] = WALL
             elif val == 2:
@@ -98,9 +106,18 @@ def _can_place(grid, template, origin_col: int, origin_row: int, protected: set)
         for c, val in enumerate(row):
             if val == 0: continue
             gc, gr = origin_col + c, origin_row + r
-            if not (0 < gc < COLS - 1 and 0 < gr < ROWS - 1): return False
-            if grid[gr][gc] == WALL: return False
-            if (gc, gr) in protected: return False
+
+            if val == 1:
+                # Walls must be strictly inside the playable map
+                if not (0 < gc < COLS - 1 and 0 < gr < ROWS - 1): return False
+                if grid[gr][gc] == WALL: return False
+                if (gc, gr) in protected: return False
+
+            elif val == 2:
+                # Protection zones can overlap outer border, but inside they can't overlap existing objects
+                if 0 < gc < COLS - 1 and 0 < gr < ROWS - 1:
+                    if grid[gr][gc] == WALL: return False
+                    if (gc, gr) in protected: return False
     return True
 
 def _place_objects_in_quadrant(grid, templates, weights, count: int, qc: int, qr: int, qw: int, qh: int, protected: set):
@@ -112,7 +129,7 @@ def _place_objects_in_quadrant(grid, templates, weights, count: int, qc: int, qr
         t_h = len(tmpl)
         t_w = len(tmpl[0]) if t_h > 0 else 0
 
-        max_dc, max_dr = qw - t_w - 1, qh - t_h - 1
+        max_dc, max_dr = qw - t_w, qh - t_h
         if max_dc < 0 or max_dr < 0: continue
 
         abs_c, abs_r = qc + random.randint(0, max_dc), qr + random.randint(0, max_dr)
@@ -133,10 +150,12 @@ def generate_random_map():
     for r in range(ROWS): grid[r][0] = grid[r][COLS - 1] = WALL
 
     protected: set = set()
-    _place_objects_in_quadrant(grid, _SPAWN_TEMPLATES, _SPAWN_WEIGHTS, random.randint(4, 7), 1, 1, 11, 8, protected)
-    _place_objects_in_quadrant(grid, _NON_SPAWN_TEMPLATES, _NON_SPAWN_WEIGHTS, random.randint(2, 4), 13, 1, 11, 8, protected)
-    _place_objects_in_quadrant(grid, _NON_SPAWN_TEMPLATES, _NON_SPAWN_WEIGHTS, random.randint(2, 4), 1, 10, 11, 8, protected)
-    _place_objects_in_quadrant(grid, _SPAWN_TEMPLATES, _SPAWN_WEIGHTS, random.randint(4, 7), 13, 10, 11, 8, protected)
+
+    # Quadrants start at 0 and go to boundaries
+    _place_objects_in_quadrant(grid, _SPAWN_TEMPLATES,     _SPAWN_WEIGHTS,     random.randint(5, 9), 0,  0, 13, 10, protected)  # TL
+    _place_objects_in_quadrant(grid, _NON_SPAWN_TEMPLATES, _NON_SPAWN_WEIGHTS, random.randint(3, 5), 12, 0, 13, 10, protected)  # TR
+    _place_objects_in_quadrant(grid, _NON_SPAWN_TEMPLATES, _NON_SPAWN_WEIGHTS, random.randint(3, 5), 0,  9, 13, 10, protected)  # BL
+    _place_objects_in_quadrant(grid, _SPAWN_TEMPLATES,     _SPAWN_WEIGHTS,     random.randint(5, 9), 12, 9, 13, 10, protected)  # BR
 
     for sx, sy in [SPAWN1, SPAWN2]:
         _clear_safe_zone(grid, sx, sy, radius=1)
@@ -158,7 +177,6 @@ def generate_random_map():
 # ── Data classes ───────────────────────────────────────────────────────────────
 
 class Tank:
-    # CHANGED: added mine_cooldown to __slots__
     __slots__ = ("x", "y", "direction", "health", "ammo", "mines",
                  "cooldown", "mine_cooldown", "charge_progress", "player_id")
 
@@ -166,14 +184,14 @@ class Tank:
         self.x, self.y, self.direction = x, y, direction
         self.health, self.ammo, self.mines = MAX_HEALTH, MAX_AMMO, MAX_MINES
         self.cooldown       = 0
-        self.mine_cooldown  = 0   # NEW: Option 1 — ticks until next mine plant allowed
+        self.mine_cooldown  = 0
         self.charge_progress = 0
         self.player_id      = player_id
 
     @property
     def alive(self): return self.health > 0
     def can_shoot(self): return self.cooldown <= 0 and self.ammo > 0
-    def can_plant_mine(self): return self.mine_cooldown <= 0  # NEW helper
+    def can_plant_mine(self): return self.mine_cooldown <= 0
 
 class Bullet:
     __slots__ = ("x", "y", "direction", "owner_id", "lifetime", "move_timer")
@@ -231,7 +249,6 @@ class TankGame:
         if self.tank1.cooldown > 0: self.tank1.cooldown -= 1
         if self.tank2.cooldown > 0: self.tank2.cooldown -= 1
 
-        # NEW: Option 1 — tick down mine cooldowns
         if self.tank1.mine_cooldown > 0: self.tank1.mine_cooldown -= 1
         if self.tank2.mine_cooldown > 0: self.tank2.mine_cooldown -= 1
 
@@ -303,21 +320,6 @@ class TankGame:
         tank.cooldown = SHOOT_COOLDOWN
 
     def _plant_mine(self, tank) -> bool:
-        """
-        Plant a mine at the tank's current position.
-
-        Blocked if any of these are true:
-          - Tank has no mines left in inventory
-          - Tank already has MAX_MINES active on the field
-          - There is already a mine on this exact tile
-          - [Option 3] Episode is younger than MINE_SPAWN_LOCKOUT ticks
-                       (prevents instant mine-dump at game start)
-          - [Option 1] Tank's mine_cooldown has not expired yet
-                       (enforces minimum time between consecutive plants)
-          - [Option 2] Any mine anywhere on the field is within
-                       MINE_MIN_SPACING Manhattan tiles of this position
-                       (prevents mine clusters / suicide packs)
-        """
         if tank.mines <= 0:
             return False
         if sum(1 for m in self.active_mines if m.owner_id == tank.player_id) >= MAX_MINES:
@@ -325,25 +327,21 @@ class TankGame:
         if any(m.x == tank.x and m.y == tank.y for m in self.active_mines):
             return False
 
-        # ── Option 3: spawn lockout — no mines in the opening phase ───────────
         if self.ticks < MINE_SPAWN_LOCKOUT:
             return False
 
-        # ── Option 1: mine cooldown — must wait between plants ────────────────
         if tank.mine_cooldown > 0:
             return False
 
-        # ── Option 2: spacing — no mine within MINE_MIN_SPACING tiles ─────────
         if any(
             abs(tank.x - m.x) + abs(tank.y - m.y) < MINE_MIN_SPACING
             for m in self.active_mines
         ):
             return False
 
-        # All checks passed — plant the mine
         self.active_mines.append(Mine(tank.x, tank.y, tank.player_id))
         tank.mines -= 1
-        tank.mine_cooldown = MINE_COOLDOWN_TICKS   # start per-tank cooldown
+        tank.mine_cooldown = MINE_COOLDOWN_TICKS
         return True
 
     def _update_charge(self, tank):
@@ -481,7 +479,6 @@ class TankGame:
                 "left":    blocked(dx_l,   dy_l),
                 "right":   blocked(dx_r,   dy_r),
             },
-            # can_mine mirrors every check in _plant_mine so the agent sees the truth
             "can_shoot":              my_tank.can_shoot(),
             "can_mine":               (
                 my_tank.mines > 0

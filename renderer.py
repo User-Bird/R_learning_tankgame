@@ -18,7 +18,7 @@ from game import (
     MAX_HEALTH, MAX_AMMO, MAX_MINES, CHARGE_TICKS,
 )
 
-# ── Palette (identical to game_2a.py) ─────────────────────────────────────────
+# ── Palette (identical to test_game.py) ─────────────────────────────────────────
 C_ARENA_BG    = (18,  20,  26)
 C_WALL        = (44,  52,  70)
 C_WALL_BORDER = (60,  72,  98)
