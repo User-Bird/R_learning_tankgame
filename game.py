@@ -38,6 +38,11 @@ BULLET_LIFETIME   = 60
 CHARGE_TICKS      = 2
 MAX_TICKS         = 800      # ~13 seconds at 60Hz. Forces episodes to end.
 
+# ── Mine placement restrictions ───────────────────────────────────────────────
+MINE_COOLDOWN_TICKS  = 60    # Option 1 — ticks between mine plants (1 second at 60Hz)
+MINE_MIN_SPACING     = 6     # Option 2 — min Manhattan distance between ANY two mines
+MINE_SPAWN_LOCKOUT   = 120   # Option 3 — ticks after episode start before ANY mine allowed
+
 # ── Reward constants ───────────────────────────────────────────────────────────
 R_HIT_ENEMY      =  50.0
 R_MINE_TRIGGER   =  80.0
@@ -153,15 +158,22 @@ def generate_random_map():
 # ── Data classes ───────────────────────────────────────────────────────────────
 
 class Tank:
-    __slots__ = ("x", "y", "direction", "health", "ammo", "mines", "cooldown", "charge_progress", "player_id")
+    # CHANGED: added mine_cooldown to __slots__
+    __slots__ = ("x", "y", "direction", "health", "ammo", "mines",
+                 "cooldown", "mine_cooldown", "charge_progress", "player_id")
+
     def __init__(self, x, y, direction, player_id):
         self.x, self.y, self.direction = x, y, direction
         self.health, self.ammo, self.mines = MAX_HEALTH, MAX_AMMO, MAX_MINES
-        self.cooldown, self.charge_progress, self.player_id = 0, 0, player_id
+        self.cooldown       = 0
+        self.mine_cooldown  = 0   # NEW: Option 1 — ticks until next mine plant allowed
+        self.charge_progress = 0
+        self.player_id      = player_id
 
     @property
     def alive(self): return self.health > 0
     def can_shoot(self): return self.cooldown <= 0 and self.ammo > 0
+    def can_plant_mine(self): return self.mine_cooldown <= 0  # NEW helper
 
 class Bullet:
     __slots__ = ("x", "y", "direction", "owner_id", "lifetime", "move_timer")
@@ -208,7 +220,6 @@ class TankGame:
         if actions[1] == 2 and dist_after < dist_before: rewards[1] += R_CLOSER_ENEMY
 
         # ── Reward Shaping: Facing ─────────────────────────────────────────────
-        # Only reward facing if they are actually taking a non-stay action (action != 4)
         if actions[0] != 4 and self._is_facing(self.tank1, self.tank2): rewards[0] += R_FACING_ENEMY
         if actions[1] != 4 and self._is_facing(self.tank2, self.tank1): rewards[1] += R_FACING_ENEMY
 
@@ -219,6 +230,10 @@ class TankGame:
         # ── cooldowns & charge ────────────────────────────────────────────────
         if self.tank1.cooldown > 0: self.tank1.cooldown -= 1
         if self.tank2.cooldown > 0: self.tank2.cooldown -= 1
+
+        # NEW: Option 1 — tick down mine cooldowns
+        if self.tank1.mine_cooldown > 0: self.tank1.mine_cooldown -= 1
+        if self.tank2.mine_cooldown > 0: self.tank2.mine_cooldown -= 1
 
         if self._update_charge(self.tank1): rewards[0] += R_CHARGE_PICKUP
         if self._update_charge(self.tank2): rewards[1] += R_CHARGE_PICKUP
@@ -245,7 +260,6 @@ class TankGame:
         return self.grid[y][x] != WALL
 
     def _is_facing(self, tank, enemy):
-        """Rough check if a tank is generally pointed towards the enemy."""
         if tank.direction == UP and enemy.y < tank.y: return True
         if tank.direction == DOWN and enemy.y > tank.y: return True
         if tank.direction == LEFT and enemy.x < tank.x: return True
@@ -253,7 +267,6 @@ class TankGame:
         return False
 
     def _has_los(self, t1, t2):
-        """Check if tanks share a clear row or column without walls."""
         if t1.x != t2.x and t1.y != t2.y: return False
         if t1.x == t2.x:
             y1, y2 = min(t1.y, t2.y), max(t1.y, t2.y)
@@ -290,11 +303,47 @@ class TankGame:
         tank.cooldown = SHOOT_COOLDOWN
 
     def _plant_mine(self, tank) -> bool:
-        if tank.mines <= 0: return False
-        if sum(1 for m in self.active_mines if m.owner_id == tank.player_id) >= MAX_MINES: return False
-        if any(m.x == tank.x and m.y == tank.y for m in self.active_mines): return False
+        """
+        Plant a mine at the tank's current position.
+
+        Blocked if any of these are true:
+          - Tank has no mines left in inventory
+          - Tank already has MAX_MINES active on the field
+          - There is already a mine on this exact tile
+          - [Option 3] Episode is younger than MINE_SPAWN_LOCKOUT ticks
+                       (prevents instant mine-dump at game start)
+          - [Option 1] Tank's mine_cooldown has not expired yet
+                       (enforces minimum time between consecutive plants)
+          - [Option 2] Any mine anywhere on the field is within
+                       MINE_MIN_SPACING Manhattan tiles of this position
+                       (prevents mine clusters / suicide packs)
+        """
+        if tank.mines <= 0:
+            return False
+        if sum(1 for m in self.active_mines if m.owner_id == tank.player_id) >= MAX_MINES:
+            return False
+        if any(m.x == tank.x and m.y == tank.y for m in self.active_mines):
+            return False
+
+        # ── Option 3: spawn lockout — no mines in the opening phase ───────────
+        if self.ticks < MINE_SPAWN_LOCKOUT:
+            return False
+
+        # ── Option 1: mine cooldown — must wait between plants ────────────────
+        if tank.mine_cooldown > 0:
+            return False
+
+        # ── Option 2: spacing — no mine within MINE_MIN_SPACING tiles ─────────
+        if any(
+            abs(tank.x - m.x) + abs(tank.y - m.y) < MINE_MIN_SPACING
+            for m in self.active_mines
+        ):
+            return False
+
+        # All checks passed — plant the mine
         self.active_mines.append(Mine(tank.x, tank.y, tank.player_id))
         tank.mines -= 1
+        tank.mine_cooldown = MINE_COOLDOWN_TICKS   # start per-tank cooldown
         return True
 
     def _update_charge(self, tank):
@@ -373,7 +422,6 @@ class TankGame:
         t1_dead, t2_dead = not self.tank1.alive, not self.tank2.alive
         rewards = {}
 
-        # Timeout Rule
         if self.ticks >= MAX_TICKS and not (t1_dead or t2_dead):
             self.result_text = "TIMEOUT — DRAW!"
             self.done = True
@@ -406,7 +454,6 @@ class TankGame:
 
         dist = abs(my_tank.x - enemy_tank.x) + abs(my_tank.y - enemy_tank.y)
 
-        # Calculate relative angle to enemy (0.0 = directly facing, 1.0 = back to enemy)
         ex, ey = enemy_tank.x - my_tank.x, enemy_tank.y - my_tank.y
         target_angle = math.atan2(ey, ex)
         dir_angles = {UP: -math.pi/2, RIGHT: 0, DOWN: math.pi/2, LEFT: math.pi}
@@ -434,8 +481,18 @@ class TankGame:
                 "left":    blocked(dx_l,   dy_l),
                 "right":   blocked(dx_r,   dy_r),
             },
+            # can_mine mirrors every check in _plant_mine so the agent sees the truth
             "can_shoot":              my_tank.can_shoot(),
-            "can_mine":               (my_tank.mines > 0 and not any(m.x == my_tank.x and m.y == my_tank.y for m in self.active_mines)),
+            "can_mine":               (
+                my_tank.mines > 0
+                and self.ticks >= MINE_SPAWN_LOCKOUT
+                and my_tank.mine_cooldown <= 0
+                and not any(m.x == my_tank.x and m.y == my_tank.y for m in self.active_mines)
+                and not any(
+                    abs(my_tank.x - m.x) + abs(my_tank.y - m.y) < MINE_MIN_SPACING
+                    for m in self.active_mines
+                )
+            ),
             "on_charge_tile":         self.grid[my_tank.y][my_tank.x] == CHARGE_TILE,
             "distance_to_enemy":      dist,
             "angle_to_enemy":         angle_norm,
