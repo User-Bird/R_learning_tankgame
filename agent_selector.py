@@ -33,6 +33,7 @@ import datetime
 
 import pygame
 import torch
+from game import generate_random_map, WALL, CHARGE_TILE, COLS, ROWS, SPAWN1, SPAWN2
 
 # ── Palette (matches the rest of the project) ─────────────────────────────────
 C_BG         = (10,  10,  14)
@@ -181,6 +182,126 @@ def _pick_agent(screen, fonts, title: str) -> str | None:
         pygame.display.flip()
         clock.tick(30)
 
+# ── Fixed-map preview + picker ─────────────────────────────────────────────────
+
+def _draw_map_preview(surf, grid, charge_tiles, rect):
+    """
+    Draw a miniature preview of a map inside rect.
+    Walls are grey, charge tiles yellow, spawn zones tinted.
+    """
+    rows = len(grid)
+    cols = len(grid[0]) if rows else 0
+    if cols == 0:
+        return
+
+    tile_sz = min(rect.width // cols, rect.height // rows)
+    ox = rect.left + (rect.width  - tile_sz * cols) // 2
+    oy = rect.top  + (rect.height - tile_sz * rows) // 2
+
+    charge_set = set(map(tuple, charge_tiles))
+
+    for r in range(rows):
+        for c in range(cols):
+            x = ox + c * tile_sz
+            y = oy + r * tile_sz
+            t = grid[r][c]
+            if t == WALL:
+                color = (55, 65, 88)
+            elif (c, r) in charge_set:
+                color = (80, 70, 15)
+            else:
+                color = (18, 20, 26)
+            pygame.draw.rect(surf, color, (x, y, tile_sz, tile_sz))
+
+    # Spawn tints
+    for (sx, sy), col in [(SPAWN1, (40, 80, 50)), (SPAWN2, (80, 40, 40))]:
+        pygame.draw.rect(surf, col,
+                         (ox + sx * tile_sz, oy + sy * tile_sz, tile_sz, tile_sz))
+
+
+def show_map_choice(screen, fonts):
+    """
+    Show a map-type selection screen.
+
+    Returns
+    -------
+    (grid, charge_tiles)  →  train on this fixed map every episode
+    None                  →  generate a fresh random map each episode
+    """
+    font_md, font_sm, font_xs = fonts
+    W, H  = screen.get_size()
+    clock = pygame.time.Clock()
+
+    current_map = generate_random_map()
+
+    DW, DH = 520, 440
+    dx, dy = (W - DW) // 2, (H - DH) // 2
+    dlg    = pygame.Rect(dx, dy, DW, DH)
+
+    preview_rect = pygame.Rect(dx + 14, dy + 72, DW - 28, 230)
+
+    btn_h  = 36
+    btn_w  = (DW - 42) // 3
+    btn_y  = dy + DH - 52
+    btn_regen  = pygame.Rect(dx + 14,                   btn_y, btn_w, btn_h)
+    btn_use    = pygame.Rect(dx + 14 + btn_w + 7,       btn_y, btn_w, btn_h)
+    btn_random = pygame.Rect(dx + 14 + (btn_w + 7) * 2, btn_y, btn_w, btn_h)
+
+    while True:
+        mouse = pygame.mouse.get_pos()
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                raise SystemExit
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    return None
+                if event.key == pygame.K_r:
+                    current_map = generate_random_map()
+                if event.key == pygame.K_RETURN:
+                    return current_map
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if btn_regen.collidepoint(mouse):
+                    current_map = generate_random_map()
+                elif btn_use.collidepoint(mouse):
+                    return current_map
+                elif btn_random.collidepoint(mouse):
+                    return None
+
+        # ── Draw ─────────────────────────────────────────────────────────────
+        overlay = pygame.Surface((W, H), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 160))
+        screen.blit(overlay, (0, 0))
+
+        pygame.draw.rect(screen, C_BG,     dlg, border_radius=10)
+        pygame.draw.rect(screen, C_BORDER, dlg, 1, border_radius=10)
+
+        ttl = font_md.render("CHOOSE MAP TYPE", True, C_TEXT_PRI)
+        screen.blit(ttl, (dlg.centerx - ttl.get_width() // 2, dy + 14))
+
+        sub = font_xs.render(
+            "Fixed: agents train on the same map every episode   "
+            "  R = regenerate",
+            True, C_TEXT_SEC)
+        screen.blit(sub, (dlg.centerx - sub.get_width() // 2, dy + 48))
+
+        # Map preview panel
+        pygame.draw.rect(screen, C_PANEL_BG, preview_rect, border_radius=4)
+        pygame.draw.rect(screen, C_BORDER,   preview_rect, 1, border_radius=4)
+        grid, charge_tiles = current_map
+        _draw_map_preview(screen, grid, charge_tiles, preview_rect.inflate(-6, -6))
+
+        # Buttons
+        _draw_btn(screen, font_sm, "Regenerate",   btn_regen,  C_BTN_AVA,
+                  btn_regen.collidepoint(mouse))
+        _draw_btn(screen, font_sm, "Use This Map", btn_use,    C_BTN_OK,
+                  btn_use.collidepoint(mouse))
+        _draw_btn(screen, font_sm, "Random Maps",  btn_random, C_BTN_CANCEL,
+                  btn_random.collidepoint(mouse))
+
+        pygame.display.flip()
+        clock.tick(30)
 
 # ── Session mode picker (main entry point) ────────────────────────────────────
 
@@ -231,14 +352,16 @@ def show_session_mode_picker(screen, fonts):
                 for btn, mode, _, _ in MODES:
                     if btn.collidepoint(mouse):
                         if mode == "NEW_VS_NEW":
-                            return mode, None, None
+                            fixed_map = show_map_choice(screen, fonts)
+                            return mode, None, None, fixed_map
 
                         elif mode == "NEW_VS_AGENT":
                             path = _pick_agent(screen, fonts,
                                                "Select P2 agent (.pt file)")
                             if path is None:
-                                break   # user cancelled — stay on picker
-                            return mode, None, path
+                                break
+                            fixed_map = show_map_choice(screen, fonts)
+                            return mode, None, path, fixed_map
 
                         elif mode == "AGENT_VS_AGENT":
                             p1 = _pick_agent(screen, fonts,
@@ -249,7 +372,9 @@ def show_session_mode_picker(screen, fonts):
                                              "Select P2 agent (.pt file)")
                             if p2 is None:
                                 break
-                            return mode, p1, p2
+                            # No map choice for agent-vs-agent: both are
+                            # already trained, map type is irrelevant.
+                            return mode, p1, p2, None
 
         # Draw picker screen
         screen.fill(C_BG)

@@ -55,6 +55,7 @@ class Trainer:
         # session that already hit the floor doesn't log a spurious message.
         self._epsilon_floor_logged = False
         self.episodes = 0   # incremented by on_episode_end(); used for the log
+        self.fixed_map = None
 
     # ── Checkpoint save / load ────────────────────────────────────────────────
 
@@ -67,12 +68,14 @@ class Trainer:
                      (e.g. episodes, win_rate, session_mode, saved_at)
         """
         checkpoint = {
-            "version":    2,
+            "version": 2,
             "state_dict": self.online_net.state_dict(),
-            "epsilon":    self.epsilon,
-            "tick":       self._tick,
-            "episodes":   self.episodes,
+            "epsilon": self.epsilon,
+            "tick": self._tick,
+            "episodes": self.episodes,
         }
+        if self.fixed_map is not None:
+            checkpoint["fixed_map"] = self.fixed_map  # saved alongside weights
         if extra_info:
             checkpoint.update(extra_info)
         torch.save(checkpoint, path)
@@ -94,6 +97,7 @@ class Trainer:
             self.epsilon  = raw.get("epsilon", EPSILON_END)
             self._tick    = raw.get("tick",    0)
             self.episodes = raw.get("episodes", 0)
+            self.fixed_map = raw.get("fixed_map", None)
             # Re-arm the floor log: if the loaded epsilon is already at the
             # floor we don't want to log again, so mark it as already done.
             self._epsilon_floor_logged = (self.epsilon <= EPSILON_END)

@@ -26,38 +26,44 @@ from agent_selector import (
 # ── Session Wrapper ────────────────────────────────────────────────────────────
 
 class Session:
-    def __init__(self, idx: int, session_mode: str, agent1_path: str, agent2_path: str):
-        self.idx = idx
-        self.game = TankGame()
+    def __init__(self, idx: int, session_mode: str,
+                 agent1_path: str, agent2_path: str,
+                 fixed_map=None):
+        self.idx   = idx
+        self.game  = TankGame(fixed_map=fixed_map)
+
         self.trainer1 = Trainer()
         self.trainer2 = Trainer()
-        self.episodes = 0
-        self.wins_p1 = 0
-        self.wins_p2 = 0
-        self.ticks = 0
-        self.ep_reward_p1 = 0.0
-        self.ep_reward_p2 = 0.0
+
+        # Tag trainers so the fixed map is embedded in saved checkpoints
+        if fixed_map is not None:
+            self.trainer1.fixed_map = fixed_map
+            self.trainer2.fixed_map = fixed_map
+
+        self.episodes         = 0
+        self.wins_p1          = 0
+        self.wins_p2          = 0
+        self.ticks            = 0
+        self.ep_reward_p1     = 0.0
+        self.ep_reward_p2     = 0.0
         self.last_ep_reward_p1 = 0.0
         self.last_ep_reward_p2 = 0.0
+
+        # Load weights only — never restore old win/episode counters into this
+        # session. Win-rate must reflect the current session, not history.
         if session_mode == "NEW_VS_AGENT" and agent2_path:
-            ckpt = self.trainer2.load_checkpoint(agent2_path)
-            if ckpt:
-                self.episodes = ckpt.get("episodes", 0)
-                self.wins_p2  = ckpt.get("wins",     0)
+            self.trainer2.load_checkpoint(agent2_path)
+
         elif session_mode == "AGENT_VS_AGENT":
             if agent1_path:
-                ckpt1 = self.trainer1.load_checkpoint(agent1_path)
-                if ckpt1:
-                    self.episodes = max(self.episodes, ckpt1.get("episodes", 0))
-                    self.wins_p1  = ckpt1.get("wins",     0)
+                self.trainer1.load_checkpoint(agent1_path)
             if agent2_path:
-                ckpt2 = self.trainer2.load_checkpoint(agent2_path)
-                if ckpt2:
-                    self.episodes = max(self.episodes, ckpt2.get("episodes", 0))
-                    self.wins_p2  = ckpt2.get("wins",     0)
+                self.trainer2.load_checkpoint(agent2_path)
+
         self.agent1 = DQNAgent(self.trainer1)
         self.agent2 = DQNAgent(self.trainer2)
         self.states = self.game.reset()
+
     def step(self):
         s1, s2 = self.states
         a1 = self.agent1.get_action(s1)
@@ -169,10 +175,13 @@ def main():
     font_xs = pygame.font.SysFont("consolas", 12)
     fonts = (font_md, font_sm, font_xs)
 
-    session_mode, agent1_path, agent2_path = show_session_mode_picker(screen, fonts)
+    session_mode, agent1_path, agent2_path, fixed_map = show_session_mode_picker(screen, fonts)
 
     # Initialize the 6 games, passing down our selected modes
-    sessions = [Session(i, session_mode, agent1_path, agent2_path) for i in range(6)]
+    sessions = [
+        Session(i, session_mode, agent1_path, agent2_path, fixed_map=fixed_map)
+        for i in range(6)
+    ]
 
     # ── Button geometry
     bw, bh = 140, 40

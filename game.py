@@ -207,13 +207,17 @@ class Mine:
 # ── TankGame ───────────────────────────────────────────────────────────────────
 
 class TankGame:
-    def __init__(self):
+    def __init__(self, fixed_map=None):
         self.episode = 0
+        # If a (grid, charge_tiles) tuple is provided, reuse it every episode.
+        # If None, a fresh random map is generated each episode (original behaviour).
+        self._fixed_map = fixed_map
         self._new_episode_state()
 
     def reset(self):
         self._new_episode_state()
         return self._state_pair()
+
 
     def step(self, actions):
         if self.done:
@@ -265,9 +269,15 @@ class TankGame:
     # ── Internal logic ─────────────────────────────────────────────────────────
 
     def _new_episode_state(self):
-        self.grid, self.charge_tiles = generate_random_map()
-        self.tank1 = Tank(SPAWN1[0], SPAWN1[1], UP,   1)
-        self.tank2 = Tank(SPAWN2[0], SPAWN2[1], DOWN, 2)
+        if self._fixed_map is not None:
+            grid, charge_tiles = self._fixed_map
+            # Deep-copy so consumed charge tiles do not corrupt the template
+            self.grid        = [row[:] for row in grid]
+            self.charge_tiles = list(charge_tiles)
+        else:
+            self.grid, self.charge_tiles = generate_random_map()
+        self.tank1  = Tank(SPAWN1[0], SPAWN1[1], UP,   1)
+        self.tank2  = Tank(SPAWN2[0], SPAWN2[1], DOWN, 2)
         self.bullets, self.active_mines = [], []
         self.ticks, self.done, self.result_text = 0, False, ""
         self.episode += 1

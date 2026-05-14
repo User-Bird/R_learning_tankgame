@@ -262,31 +262,34 @@ class TestSession:
     """
 
     def __init__(self, agent_path: str | None):
-        self.game    = TankGame()
-        self.is_dqn  = agent_path is not None
+        self.is_dqn = agent_path is not None
         self.trainer = None
-        self.last_q  = None      # Q-values of the last AI decision
+        self.last_q = None
         self.agent_name = "Random Bot"
-
-        # Bot constraints
         self.bot_move_cd = 0
         self.bot_rotate_cd = 0
+
+        fixed_map = None
 
         if self.is_dqn:
             self.trainer = Trainer()
             self.trainer.load_checkpoint(agent_path)
-            self.trainer.epsilon = 0.0   # pure exploitation — no random moves
+            self.trainer.epsilon = 0.0  # pure exploitation in test mode
             self.agent_name = os.path.basename(agent_path)
+            fixed_map = self.trainer.fixed_map  # None if agent was not trained on a fixed map
+
+        self._fixed_map = fixed_map  # keep a reference for new_episode
+        self.game = TankGame(fixed_map=fixed_map)
 
         # Cross-episode score
-        self.wins_p1  = self.wins_p2  = 0
+        self.wins_p1 = self.wins_p2 = 0
         self.kills_p1 = self.kills_p2 = 0
-        self.deaths_p1= self.deaths_p2= 0
+        self.deaths_p1 = self.deaths_p2 = 0
 
         self.result_timer = 0
-        self.result_text  = ""
+        self.result_text = ""
         s1, s2 = self.game.reset()
-        self.state2 = s2           # last known AI state dict
+        self.state2 = s2          # last known AI state dict
 
     # ── AI decision ──────────────────────────────────────────────────────────
 
@@ -475,12 +478,13 @@ def draw_arena(surf, game):
     if game.tank2.alive: _draw_tank(surf, game.tank2, TILE, False)
 
 
-def draw_result_overlay(surf, text, alpha_frac, font_lg, font_sm):
+def draw_result_overlay(surf, text, alpha_frac, font_lg, font_sm, fixed_map=False):
     ov = pygame.Surface((ARENA_W, ARENA_H), pygame.SRCALPHA)
     ov.fill((0, 0, 0, int(180 * alpha_frac)))
     surf.blit(ov, (0, 0))
     t1 = font_lg.render(text, True, (255, 255, 220))
-    t2 = font_sm.render("Generating new map…", True, (160, 158, 150))
+    map_label = "Restarting on same map…" if fixed_map else "Generating new map…"
+    t2 = font_sm.render(map_label, True, (160, 158, 150))
     cx, cy = ARENA_W // 2, ARENA_H // 2
     surf.blit(t1, (cx - t1.get_width() // 2, cy - t1.get_height()))
     surf.blit(t2, (cx - t2.get_width() // 2, cy + 8))
@@ -819,8 +823,9 @@ def main():
 
         if session.game.done and session.result_text:
             alpha = min(1.0, (RESET_DELAY - session.result_timer) / 20.0)
-            draw_result_overlay(screen, session.result_text,
-                                alpha, font_lg, font_sm)
+            draw_result_overlay(arena_surf, session.result_text,
+                                alpha, font_lg, font_sm,
+                                fixed_map=session._fixed_map is not None)
 
         draw_hud(screen, session, hud_rect, font_md, font_sm, font_xs, move_cd)
         draw_info_bar(screen, info_rect, font_xs)
