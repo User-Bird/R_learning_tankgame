@@ -27,11 +27,14 @@ main.py (not here) — this module just serialises and deserialises it.
 
 import json
 import os
+import sys
 import time
 
 STATS_FILE  = "stats_data.json"
 STATS_TMP   = "stats_data.tmp.json"
 STALE_AFTER = 3.0   # seconds — if data is older than this, main.py is dead
+
+_IS_WINDOWS = sys.platform == "win32"
 
 
 def write_stats(sessions, mode: str, tps: float, fps: float,
@@ -83,9 +86,39 @@ def write_shutdown():
 
 
 def _atomic_write(data: dict):
+    """
+    Write data to STATS_FILE atomically.
+
+    On Linux/macOS, os.replace() is a true atomic rename.
+    On Windows, os.replace() can raise PermissionError if the destination
+    file is open by another process (e.g. stats_window.py reading it).
+    We work around this with a retry loop and, as a last resort, a direct
+    overwrite so the writer never crashes.
+    """
+    # Write to the temp file first (always safe)
     with open(STATS_TMP, "w") as f:
         json.dump(data, f)
-    os.replace(STATS_TMP, STATS_FILE)
+
+    if not _IS_WINDOWS:
+        # POSIX: rename is atomic and never fails due to the target being open
+        os.replace(STATS_TMP, STATS_FILE)
+        return
+
+    # Windows: retry the replace a few times; readers hold the file open only
+    # for the brief json.load() call, so collisions are rare and short-lived.
+    for attempt in range(5):
+        try:
+            os.replace(STATS_TMP, STATS_FILE)
+            return
+        except PermissionError:
+            time.sleep(0.01)   # 10 ms — wait for the reader to close the file
+
+    # Last resort: direct overwrite (non-atomic but better than crashing)
+    try:
+        with open(STATS_FILE, "w") as f:
+            json.dump(data, f)
+    except PermissionError:
+        pass   # silently skip this write cycle; the next one will succeed
 
 
 def read_stats() -> dict | None:
@@ -102,7 +135,10 @@ def read_stats() -> dict | None:
         if age > STALE_AFTER:
             return None
         return data
-    except (FileNotFoundError, json.JSONDecodeError):
+    except (FileNotFoundError, json.JSONDecodeError, PermissionError,
+            OSError):
+        # PermissionError: writer is mid-replace on Windows — skip this poll.
+        # OSError: catches other rare I/O failures gracefully.
         return None
 
 
@@ -111,5 +147,5 @@ def clear_stats():
     for path in (STATS_FILE, STATS_TMP):
         try:
             os.remove(path)
-        except FileNotFoundError:
+        except (FileNotFoundError, PermissionError):
             pass
